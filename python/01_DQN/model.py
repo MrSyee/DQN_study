@@ -5,15 +5,16 @@ from replay_buffer import Replay_Buffer
 
 slim = tf.contrib.slim
 
+
 class DQN:
-    def __init__(self, session, num_action):
+    def __init__(self, session, num_action, batch_size):
         self.sess = session
 
         self.n_action = num_action
         self.height = 84
         self.width = 84
-        self.input_num = 4 # 몇 개의 image를 state로 보는지
-        self.batch_size = 2
+        self.input_num = 4  # 몇 개의 image를 state로 보는지
+        self.batch_size = batch_size
 
         self._build_input()
         self.main_q_value = self._build_network(self.input_M_Q, "main_q_net")
@@ -32,9 +33,9 @@ class DQN:
         self.input_M_Q = tf.placeholder(tf.float32, shape=(None, self.height, self.width, self.input_num))
         self.input_T_Q = tf.placeholder(tf.float32, shape=(None, self.height, self.width, self.input_num))
         # action placeholder used to get main Q(S,A)
-        self.input_A = tf.placeholder(tf.int32, shape=(None))
-        # target Y placehoder
-        self.input_Y = tf.placeholder(tf.float32, shape=(None))
+        self.input_A = tf.placeholder(tf.int32, shape=None)
+        # target Y placeholder
+        self.input_Y = tf.placeholder(tf.float32, shape=None)
 
     def _build_network(self, inputs, name):
         '''
@@ -55,7 +56,6 @@ class DQN:
 
         return q_value
 
-
     def _build_op(self):
         # get main Q with A, Q(S,A): [batch_size,]
         main_Q_with_A = self._get_Q_with_A(self.main_q_value)
@@ -63,14 +63,12 @@ class DQN:
         train_op = tf.train.AdamOptimizer(self.learning_rate).minimize(loss_op)
         return loss_op, train_op
 
-
     def _get_Q_with_A(self, Q_value):
         # get Q(S,A): [batch_size,]
         one_hot = tf.one_hot(self.input_A, self.n_action, 1.0, 0.0)
         Q_with_A = tf.reduce_sum(tf.multiply(Q_value, one_hot), axis=1)
 
         return Q_with_A
-
 
     def _get_Y(self, next_state, reward):
         '''
@@ -85,12 +83,11 @@ class DQN:
                                 feed_dict={self.input_T_Q: next_state})
         Q_with_A = self._get_Q_with_A(self.target_q_value)
         target_Q = self.sess.run(Q_with_A,
-                                feed_dict={self.input_T_Q: next_state,
-                                           self.input_A: argmaxQ})
+                                 feed_dict={self.input_T_Q: next_state,
+                                            self.input_A: argmaxQ})
         Y = reward + self.discount_factor * target_Q
 
         return Y
-
 
     def train(self):
         '''
@@ -109,6 +106,7 @@ class DQN:
             next_state[i] = t[3]
             is_terminal.append(t[4])
             i += 1
+        action = np.squeeze(action, 1)
 
         # get target Y: [batch_size,]
         Y = []
@@ -121,10 +119,9 @@ class DQN:
         Y = np.squeeze(Y)
 
         loss, _ = self.sess.run([self.loss_op, self.train_op], feed_dict={self.input_M_Q: state,
-                                                                self.input_A: action,
-                                                                self.input_Y: Y})
+                                                                          self.input_A: action,
+                                                                          self.input_Y: Y})
         return loss
-
 
     def update_target_network(self):
         # copy weight from main_q_network to target_q_network
@@ -140,10 +137,7 @@ class DQN:
         self.sess.run(copy_op)
 
 
-
-
-
-class DDQN(DQN):
+class DoubleDQN(DQN):
     def _get_Y(self, next_state, reward):
         # argmaxQ 를 main_q로 구함
         argmaxQ = self.sess.run(tf.argmax(self.main_q_value),

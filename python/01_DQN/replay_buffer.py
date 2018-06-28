@@ -1,5 +1,6 @@
 import random
 
+
 # Unifrom Replay Buffer
 class Replay_Buffer:
     def __init__(self, capacity):
@@ -16,5 +17,5 @@ class Replay_Buffer:
 
     def add_sample(self, sample):
         self.buffer.append(sample)
-        while(len(self.buffer) > self.capacity):
+        while len(self.buffer) > self.capacity:
             del self.buffer[0]
